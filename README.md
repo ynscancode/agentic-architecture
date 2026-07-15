@@ -44,6 +44,7 @@ Multi-agent setups fail in three predictable ways. Each subsystem here targets o
 | `knowledge/` | The knowledge-base index, shipped as an empty scaffold |
 | `CLAUDE.md.template` | Global instructions that wire it all together |
 | `tools/` | The consistency checker and its self-test (see [Keeping it consistent](#keeping-it-consistent)) |
+| `hooks/` | A `PostToolUse` hook that logs KB consults, so "is it a graveyard?" is a count |
 
 The load-bearing skills are `team-orchestration` (hierarchy + routing tree), `team-communication` (mesh layer + archive protocol), `knowledge-base` (the cognitive library), and `confidence-check` (a self-verification gate every role runs before reporting done). The other 15 are per-role craft skills.
 
@@ -69,6 +70,14 @@ The trigger measures **new material, not standing inventory** — and that disti
 The part most systems skip. If you retrieve a lesson, apply it, and it turns out wrong or inapplicable — you file a **misfire receipt** on the lesson itself, and raise `Status: active ⚠N` on its index row. Now the next retrieval can't reach the lesson without seeing the warning.
 
 **Deliberately asymmetric: receipts are filed only for failures, never for correct retrievals** — logging successes is noise. Two failure modes, two remediations: an *inapplicable* lesson gets its `Trigger` sharpened with an explicit anti-trigger; a *wrong* one gets corrected, or `deprecated` if unsalvageable.
+
+### It knows if it's being ignored
+
+The first anti-pattern this library names is the **write-only graveyard**: it only self-improves if it's actually consulted. That's a failure you can't notice by feel — a consult that never happens leaves no trace and costs you nothing you can perceive, so a KB working daily and one ignored for months look identical from the outside.
+
+So a `PostToolUse` hook logs every read of the KB to `CONSULT-LOG.tsv`. **The harness writes it, not the model** — which is the whole point. A log the agent maintained would share the exact failure it measures, since an agent that forgets to consult also forgets to log. Writes are classified separately from reads, so the KB's own bookkeeping can't inflate the number and hide the graveyard.
+
+It's checked at RECORD time, never on a calendar — a check scheduled by nothing is a check that never runs. And it's a smoke detector, not a dashboard: the only actionable signal is ≈0 reads across several records, which means the triggers aren't firing, the categories don't match your work, or the wiring is broken.
 
 ### One curator
 
@@ -106,6 +115,32 @@ cp -r agents/* ~/.claude/agents/
 cp -r skills/* ~/.claude/skills/
 cp -n knowledge/KNOWLEDGE-INDEX.md ~/.claude/knowledge/   # -n: never clobber an existing KB
 ```
+
+To enable the consult log, also copy the hook and register it:
+
+```bash
+mkdir -p ~/.claude/hooks && cp hooks/log-kb-consult.py ~/.claude/hooks/
+```
+
+Then merge this into `~/.claude/settings.json` (merge — don't overwrite the file):
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [{
+      "matcher": "Read|Grep|Glob|Bash",
+      "hooks": [{
+        "type": "command",
+        "command": "python ~/.claude/hooks/log-kb-consult.py 2>/dev/null || true",
+        "async": true,
+        "timeout": 10
+      }]
+    }]
+  }
+}
+```
+
+Requires `python` on `PATH`. The hook is optional — everything else works without it; you just won't be able to tell whether the KB is a graveyard.
 
 > **`cp -n` on that last line is load-bearing.** If you already run a knowledge base, plain `cp` would overwrite your `KNOWLEDGE-INDEX.md` with this empty scaffold and orphan every lesson in your shards. `-n` refuses to overwrite. The first two lines *do* overwrite same-named agents and skills — check for collisions first if you have your own.
 
