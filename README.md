@@ -57,6 +57,28 @@ A cross-project library of **generalizable** lessons at `~/.claude/knowledge/`. 
 - **Index** (`KNOWLEDGE-INDEX.md`) — one row per lesson: slug, category, shard, status, compressed principle, trigger, tags. Always queried first.
 - **Shards** (`KNOWLEDGE-NNN.md`) — the full write-up, 10,000-line cap each, extracted by marker.
 
+```mermaid
+flowchart TB
+    LES["A lesson from a<br/>resolved problem"] --> TEST{"The 4-part test<br/>transferable · non-obvious<br/>actionable · durable"}
+    TEST -->|"fails — most do"| MEM["Project memory<br/>(or nothing)"]
+
+    subgraph STORE["Two-tier store · ~/.claude/knowledge/ · portable across every project"]
+        direction TB
+        IDX["<b>TIER 1 — KNOWLEDGE-INDEX.md</b><br/>one row per lesson<br/>Slug · Category · Shard · Status · Principle · Trigger · Tags<br/><i>compressed · always queried first</i>"]
+        SHARD["<b>TIER 2 — KNOWLEDGE-NNN.md</b><br/>the full write-up, bracketed by START / END markers<br/><i>cold · 10,000-line cap, then rotate · never scanned to find things</i>"]
+        IDX -->|"the row names its shard;<br/>sed the markers to pull just that lesson"| SHARD
+    end
+
+    TEST -->|"passes — RECORD<br/>writes both tiers"| STORE
+    STORE --> CONSULT["<b>CONSULT</b><br/>1 · grep the index by keyword or Category<br/>2 · read the candidates' Trigger + Principle<br/>3 · heed Status — active · ⚠N · superseded · deprecated"]
+    CONSULT --> APPLY["Apply the Principle"]
+    APPLY -->|"it was wrong or<br/>inapplicable here"| MIS["<b>MISFIRE</b> — append a receipt to the lesson,<br/>raise its Status to active ⚠N<br/><i>failures only; logging successes is noise</i>"]
+    MIS --> STORE
+    STORE --> TRIG{"5+ lessons added to one Category<br/>since that category's last pass?"}
+    TRIG -->|"yes"| CONS["<b>CONSOLIDATE</b> — merge the overlaps into one<br/>higher-order principle. Subsumed rows become<br/>superseded-by-KB-XXXX — never deleted.<br/><i>Record the watermark even if nothing merged</i>"]
+    CONS --> STORE
+```
+
 **Inclusion is strict — a lesson must be all four:** transferable to a *different* project, non-obvious, actionable, and durable. The litmus: *"Would this help on an unrelated project six months from now?"* If no, it's project memory, not knowledge. Most candidates fail, which is the point — precision over volume.
 
 ### It compresses instead of accumulating
@@ -99,7 +121,80 @@ Left alone, an append-only board becomes the exact context-bloat problem it was 
 
 Nothing is ever deleted — it moves out of every future agent's default read while staying greppable. All three files are per-project and created lazily: the live board on first touch, the index and shards on first archive.
 
+```mermaid
+flowchart TB
+    ROLES["<b>Any of the 14 roles</b> — append-only<br/>read the board before starting · post findings other roles need<br/>every entry: ### ROLE-timestamp + 5 required fields<br/><i>scoped Edit of your own Status line only — never another's entry</i>"]
+    DIR["<b>engineering-director</b><br/><i>the only role that archives, and the only one that reads the archive</i>"]
+
+    LIVE["<b>TIER 1 — TEAM-BOARD.md</b><br/>the live mesh · ACTIVE WORK ONLY<br/><i>every role reads this before starting</i>"]
+
+    ROLES --> LIVE
+    DIR -->|"reads to verify cross-role issues<br/>actually got resolved, not just raised"| LIVE
+
+    LIVE --> DONE{"Every entry in the batch<br/>RESOLVED and well-formed?"}
+    DONE -->|"no — still in flight"| LEAVE["Leave it.<br/>Archive only the finished batch"]
+    DONE -->|"yes"| ARCH["<b>ARCHIVE</b> — director only<br/>1 · capacity-check the shard; rotate if it would overflow<br/>2 · assign a permanent slug — max across all shards + 1<br/>3 · append the section, wrapped in boundary markers<br/>4 · register one disambiguating row in the index"]
+
+    subgraph COLD["The archive — cold storage, out of every agent's default read"]
+        direction TB
+        TBI["<b>TIER 2 — TEAM-BOARD-INDEX.md</b><br/>one row per archived batch<br/>Slug · Category · Shard · Heading · Resolution summary · Tags<br/><i>the registry — always queried first</i>"]
+        TBA["<b>TIER 3 — TEAM-BOARD-ARCHIVE-NNN.md</b><br/>full section text, bracketed by ARCH-NNNN START / END<br/><i>cold · 10,000-line cap, then rotate · never scanned to find things</i>"]
+        TBI -->|"the row names its shard;<br/>sed the markers to pull just that section"| TBA
+    end
+
+    ARCH --> COLD
+    ARCH --> GATE{"<b>PARITY GATE</b><br/>index slug set == shards' START-marker set?"}
+    GATE -->|"no — malformed"| FIX["Fix the archive.<br/><b>Do NOT reset.</b>"]
+    GATE -->|"yes"| RESET["Reset TEAM-BOARD.md to the empty template<br/><i>verify before you wipe the source — a bad archive<br/>write must never cost you the only copy</i>"]
+    RESET --> LIVE
+    DIR -->|"consults it only on a trigger: a request<br/>looks related to already-archived work"| TBI
+```
+
+**Why the gate matters:** the reset is the only destructive step in the system. Checking that the archive write landed intact *before* wiping the source is what stops a malformed write from costing you the only copy.
+
 ---
+
+## How it fits together
+
+Two stores, two lifetimes. The knowledge base is **installed once and follows you everywhere**; the team board is **created per project and stays there**. That split is the load-bearing idea: a portable principle goes in the KB, a fact about one repo goes in project memory or the board. The litmus is *"would this help on an unrelated project six months from now?"*
+
+```mermaid
+flowchart LR
+    subgraph USER["USER LEVEL — ~/.claude/ — installed once, follows you to every project"]
+        direction TB
+        DEFS["<b>agents/</b> · 15 role definitions<br/><b>skills/</b> · 19 protocols<br/><i>canonical — the prompts point here</i>"]
+        KB["<b>KNOWLEDGE BASE</b> · 2-tier<br/>KNOWLEDGE-INDEX.md → KNOWLEDGE-NNN.md<br/><b><i>portable principles</i></b>"]
+        LOG["<b>CONSULT-LOG.tsv</b><br/><i>written by a harness hook —<br/>not by any agent</i>"]
+        KB -->|"every read logged"| LOG
+    end
+
+    subgraph TEAM["THE TEAM — spawned per request"]
+        direction TB
+        TOP["<b>TOP-LEVEL SESSION</b><br/><i>the KB's single curator —<br/>the only thing that writes to it</i>"]
+        DIR["<b>engineering-director</b><br/>routes · verifies · archives"]
+        SPEC["<b>14 specialist roles</b><br/>PO · PM · tech-lead · devs · dba<br/>QA · security · devops · design · docs"]
+        TOP -->|"delegates substantial work"| DIR
+        DIR -->|"dispatches in dependency order,<br/>passing any KB Principle verbatim"| SPEC
+        SPEC -.->|"propose a lesson"| DIR
+        DIR -.->|"propose — never writes"| TOP
+    end
+
+    subgraph PROJ["PROJECT LEVEL — one set per repo, created lazily on first use"]
+        direction TB
+        BOARD["<b>TEAM BOARD</b> · 3-tier<br/>TEAM-BOARD.md → -INDEX.md → -ARCHIVE-NNN.md<br/><b><i>this project's work</i></b>"]
+        PMEM["<b>projects/&lt;name&gt;/memory/</b><br/><b><i>this project's facts</i></b>"]
+    end
+
+    DEFS ==>|"define"| TEAM
+    KB ==>|"CONSULT before<br/>non-trivial work"| TEAM
+    TOP ==>|"RECORD"| KB
+    LOG -.->|"checked at RECORD time:<br/>is this a graveyard?"| TOP
+    SPEC ==>|"append findings"| BOARD
+    DIR ==>|"verifies, then archives<br/>the finished batch"| BOARD
+    TOP ==> PMEM
+```
+
+**Why one curator:** there's no file locking anywhere in this system. Concurrent writes to an index would silently lose rows, and the KB's inclusion test needs a whole-session view that a subagent working one batch doesn't have. Subagents *can* write to `~/.claude/` — this is policy, not a sandbox barrier, so it holds only because it's followed deliberately.
 
 ## Install
 
