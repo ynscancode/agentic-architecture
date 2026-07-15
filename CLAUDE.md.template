@@ -1,0 +1,31 @@
+# Global instructions (all projects)
+
+## Universal knowledge base
+
+A cross-project cognitive library of generalizable lessons lives in `~/.claude/knowledge/`, governed by the `knowledge-base` skill.
+
+- **Consult before non-trivial technical work — bias toward looking.** Most recorded lessons are *domain gotchas* that fire when you touch a **kind of code** (dates, auth, migrations, layout, deployment…), not only when you're consciously making a "design decision" — so a decision-shaped trigger under-fires and leaves the library unused. Consult when you're about to: do real work in an area the KB covers (**skim the `Category` column — it's the map of what's known**), debug something non-obvious or familiar-feeling, pick between approaches, or make a judgment call you can't fully justify from the code in front of you. Skip only genuinely trivial mechanical work (a rename, a typo, running a test). The index is one line per lesson and a grep is nearly free — an empty result is the *normal* outcome and costs nothing, while not looking risks repeating a mistake already written down. **If in doubt, look.**
+  Funnel: `grep` `~/.claude/knowledge/KNOWLEDGE-INDEX.md` (keyword or `Category`) → read candidates' `Trigger`/`Principle` → **check `Status`** → apply. Heed `Status`: skip `deprecated` and `superseded-by-*` (follow the pointer for the latter); if it reads `active ⚠N`, the lesson has **misfire receipts** — read them in the shard first, since they name the contexts where it does *not* hold.
+- **Record after resolving something generalizable.** If resolving a problem taught a lesson that would transfer to a *different* project (passes the `knowledge-base` skill's four-part inclusion test), record it via that skill's RECORD protocol. Project-specific facts go to per-project memory instead, not here.
+- **File a receipt when a lesson misleads you.** If a KB lesson you applied turns out wrong or inapplicable in this context, record an error receipt on it via the `knowledge-base` skill's MISFIRE protocol — and only then (no receipt for correct retrievals). That's what stops the same wrong retrieval from recurring.
+- Invoke the `knowledge-base` skill for the full inclusion criteria, retrieval funnel, write workflow, and consolidation lifecycle.
+
+## Delegating to the engineering-director
+
+For substantial technical work, prefer routing through the `engineering-director` subagent over solving it solo. It coordinates the 14-role dev team — specialists, review/QA/security gates, the shared team board — and will generally produce better-verified work than the main session working alone. **This is a standing authorization: you do not need to ask before delegating work that fits the triggers below.** (It overrides the default "don't spawn unless asked" bias *for these cases only*.)
+
+**Delegate when the work involves any of:**
+- **Multiple disciplines** — frontend + backend, schema + API, UI + tests.
+- **A feature or non-trivial change** that should be implemented *and independently verified* (QA / security / review gates).
+- **Architecture or cross-cutting decisions**, where a tech-lead call plus specialist input beats a solo judgment.
+- **Ambiguous requirements** that need clarifying before code gets written.
+- Anything that benefits from **parallel specialists** rather than serial solo work.
+
+**Do it yourself — don't delegate — when:**
+- It's trivial, single-file, or unambiguous: a rename, a typo, a one-line fix, a config tweak.
+- It's **read-only**: answering a question, investigating, explaining code.
+- It's **meta-work on the agent system itself** — editing skills, agent definitions, the knowledge base, or the board/archive's own structure. The director is a *consumer* of that system, not its maintainer; delegating this invites circular edits.
+- The user explicitly asked **you** to do it, or wants a quick answer.
+- The spawn would cost more than it saves — every subagent starts cold and re-derives context you already hold.
+
+**When you do delegate,** hand over the concrete context you already have (files, constraints, what you've already verified, any relevant KB `Principle`) so the director doesn't re-derive it cold. If a task sits near the boundary, ask rather than defaulting to solo — the failure this fixes is *doing complex, team-shaped work alone and shipping it less verified.*
