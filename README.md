@@ -38,11 +38,15 @@ flowchart LR
     P2 -->|"batch done"| P3["TEAM-BOARD-INDEX.md<br/>one row per batch"]
     P3 --> P4["TEAM-BOARD-ARCHIVE<br/>-001.md, …<br/>+1 shard / 10k lines"]
 
-    R1["RETRIEVING<br/>— how memory<br/>is read back —<br/>either archive, same 3 steps"]
+    R1["RETRIEVING<br/>— how memory<br/>is read back —<br/>at every director spawn ·<br/>either archive, same 3 steps"]
     R1 --> R2["1 · grep the INDEX<br/>never the shards"]
     R2 --> R3["2 · read matching<br/>summaries, pick one"]
     R3 --> R4["3 · pull that ONE entry<br/>from its shard"]
 ```
+
+**Every fresh `engineering-director` greps both indices before it assigns anyone**, without first judging whether the work looks hard enough to warrant it. Finding nothing is the normal result. It scans once per spawn and carries the hits across the whole batch; a follow-up earns a re-scan only if it turns on an area the first scan wouldn't have covered.
+
+Only the index scan is mandatory — pulling an entry out of a shard still has to be earned by a matching summary.
 
 ### ① The knowledge base only
 
@@ -58,6 +62,8 @@ While work is in flight, **every role** posts findings for the others on `TEAM-B
 **Only the `engineering-director` touches the archive.** It alone files a finished batch into the index and shards, resets the board, and reads the archive back. Everyone else appends to the live board and nothing more: knowing a batch is really finished takes the cross-role view only the director has, and if every agent read the archive, that would rebuild the context bloat archiving exists to remove.
 
 **The reset is the only destructive step in the system**, so it's gated: the archive's slug set must match the shards' markers before the board is wiped. Verify the copy landed, *then* delete the original.
+
+Until a team finishes its first batch, a repo has no index — a director scanning at spawn finds nothing, which is the correct answer rather than an error. The index is created by the first archive, never by a lookup.
 
 ---
 

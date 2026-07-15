@@ -158,14 +158,17 @@ No other role truncates, resets, removes, or archives entries — confirming not
 
 The archive (index + shards) is a write-mostly historical store, not part of routine reading — don't fold it into the "read the board before starting work" step above, and never `Read` a shard in full. It exists precisely so agents *don't* load thousands of lines of old batches into context on every dispatch. **All retrieval goes through `TEAM-BOARD-INDEX.md` first** — never scan shards to find something.
 
-**When to consult it** — only on a specific trigger, not proactively:
-- A new request appears to relate to a feature/area whose board trail was already archived (e.g. the user references past work by name, or a bug looks like a regression in something previously shipped).
+**When to consult it — the director's own operating sequence owns this timing, not this section.** Its prompt makes an index scan a mandatory step at spawn, and this section is canonical for the *funnel*, not the trigger; don't restate a competing schedule here (see KB-0008 — a spec living in two authorities drifts, and the copy an executable step consumes is the one that wins). What matters for the mechanics below is the split the timing rule preserves: **the index scan is the mandated part; opening a shard never is.** Extraction stays earned through a summary match, which is what keeps this a cheap triage rather than a context dump.
+
+Beyond the scan at spawn, these are the situations that should send you *back* to the index mid-batch:
 - A deployed agent's finding references a decision, contract, or constraint that isn't in the live board and might be sitting in an old batch (e.g. an architecture contract like a prior auth/schema decision).
-- You (the director) need to confirm whether something was already tried, decided, or ruled out before routing a new request the same way again.
+- A follow-up request in an existing session turns on an area your spawn-time scan wouldn't have covered — different feature, different keywords.
+- You need to confirm whether something was already tried, decided, or ruled out before routing a new request the same way again.
 
 **How to consult it — a two-stage funnel: deterministic recall, then semantic precision.** Do not compute similarity scores, TF-IDF, or fuzzy string distance — you are a semantic reasoner; the index is built so that plain grep + your own judgment beats any lexical scoring, with far less machinery.
 
 1. **Recall (deterministic, cheap):** `grep` `TEAM-BOARD-INDEX.md` for the keyword/role/filename, and/or filter by `Category`. One row per section, so grep is line-oriented and token-light. This yields a *candidate set*, not an answer.
+   - **Base case — no index file at all.** Until this project's first archive there is no `TEAM-BOARD-INDEX.md`, and a scan mandated at every spawn will meet that state on every new repo. It is a normal, informative result — "nothing has ever been archived here" — not an error and not something to retry or work around. Note it and move on. **Do not create the index here:** it is created by the archival write path (step 6 of Board maintenance) from the canonical template, at the moment there's actually a row to put in it. An empty index conjured by a *read* is a dangling scaffold that makes a never-archived project look like a fully-archived one with no history.
 2. **Precision (semantic — this resolves keyword collisions):** read only the **`Resolution summary`** cells of the candidate rows and pick by *meaning*. The same word can appear in unrelated sections (three "export" tickets, two "date" fixes); the one-sentence summary tells you which one shares the *current* problem's context. Bypass rows whose summary describes a different situation, even if they matched the keyword. **Never extract a full section straight off a keyword hit — gate every extraction through the summary.**
 3. **Extract (targeted, deterministic):** from the chosen row read the `Slug` and `Shard`, then pull exactly that section — boundary-matched, so line shifts never matter:
    ```
