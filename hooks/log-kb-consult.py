@@ -11,6 +11,17 @@ That distinction is the whole point: a log the model writes has the same failure
 as the thing it measures (an agent that forgets to consult also forgets to log).
 Being harness-executed makes it an observation instead of a self-report.
 
+Only a CONSULT counts, and a consult must say so. The command carries a
+`# CONSULT` marker (see the knowledge-base skill's CONSULT protocol, step 1);
+everything else that touches the KB -- dedupe greps, slug assignment, parity
+checks, edits to the skill itself -- logs as `other` and is never counted.
+
+That asymmetry is deliberate. Counting every file touch made the log drift
+toward "looks alive", and a false green stops you looking -- exactly the
+graveyard it was built to catch. Requiring a positive marker inverts it: a
+consult that forgets its marker is *under*counted, the log reads dead, and you
+go look. Same discipline problem, opposite blast radius.
+
 Reads stdin JSON: {"tool_name": ..., "tool_input": {...}}
 Appends TSV to ~/.claude/knowledge/CONSULT-LOG.tsv: when, kind, tool, what.
 
@@ -26,10 +37,10 @@ from datetime import datetime, timezone
 
 LOG = os.path.expanduser("~/.claude/knowledge/CONSULT-LOG.tsv")
 
-# Writes to the KB are RECORD, not CONSULT. Counting them as consults would
-# inflate the number with the KB's own bookkeeping and hide the exact graveyard
-# this exists to catch -- a false positive is the costly direction here.
-WRITE_ISH = re.compile(r">>?\s*\S*KNOWLEDGE-|^\s*(cat|tee|cp|mv|printf|echo)\b")
+# The one positive signal. Only a command that declares itself a consult counts;
+# nothing infers intent from the command's shape, because every heuristic I tried
+# failed toward "consult" -- the unsafe direction.
+CONSULT = re.compile(r"#\s*CONSULT\b", re.I)
 
 
 def main() -> int:
@@ -49,12 +60,9 @@ def main() -> int:
     if "KNOWLEDGE-" not in what:
         return 0
 
-    if tool in ("Read", "Grep", "Glob"):
-        kind = "read"
-    elif WRITE_ISH.search(what):
-        kind = "write"
-    else:
-        kind = "read"  # sed/grep/head/wc against a KNOWLEDGE file
+    # `other` rows are kept, not dropped: they're worth eyeballing, and seeing a
+    # pile of them next to zero consults is itself the diagnosis.
+    kind = "consult" if CONSULT.search(what) else "other"
 
     when = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     what = what.replace("\t", " ").replace("\n", " ")[:160]
