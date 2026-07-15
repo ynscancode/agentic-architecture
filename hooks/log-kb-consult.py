@@ -40,7 +40,13 @@ LOG = os.path.expanduser("~/.claude/knowledge/CONSULT-LOG.tsv")
 # The one positive signal. Only a command that declares itself a consult counts;
 # nothing infers intent from the command's shape, because every heuristic I tried
 # failed toward "consult" -- the unsafe direction.
-CONSULT = re.compile(r"#\s*CONSULT\b", re.I)
+#
+# Anchored to end-of-line: the marker must be a real trailing comment on the
+# command, not merely present in it. Unanchored, anything that *mentions* the
+# marker counted as one -- a commit message describing the feature, a grep for
+# the marker in the skill file, even the bookkeeping command annotated "no
+# # CONSULT marker here". Naming the thing is not doing the thing.
+CONSULT = re.compile(r"#\s*CONSULT\s*$", re.I | re.M)
 
 
 def main() -> int:
