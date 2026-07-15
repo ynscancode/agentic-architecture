@@ -15,6 +15,7 @@ This is the other fix. Both memories here are an **index plus shards** — a sho
 | **Holds** | lessons that hold on *any* codebase | what the team found, decided and shipped *here* |
 | **Index** | `KNOWLEDGE-INDEX.md` — one row per lesson | `TEAM-BOARD-INDEX.md` — one row per finished batch |
 | **Shards** | `KNOWLEDGE-001.md`, `-002.md`, … | `TEAM-BOARD-ARCHIVE-001.md`, `-002.md`, … |
+| **Managed by** | the **top-level session**, alone | the **`engineering-director`**, alone |
 
 One question routes everything: *would this help on a **completely different** project?* Yes — rare — it's a lesson, and it goes in your home folder where the next project will find it. No, and it's this project's business, so it stays in this repo.
 
@@ -48,11 +49,13 @@ flowchart LR
 - **It compresses.** Every lesson has a `Category`. When five *new* ones land in one category, they're reviewed together and any overlap merges into a single lesson. The originals get `Status: superseded-by-KB-XXXX` — kept, but skipped by future searches. The index gets shorter as the pile gets longer.
 - **It records its own bad advice.** A lesson that steers you wrong gets that written on itself, and its `Status` becomes `active ⚠1`. It can't be retrieved again without the warning attached. Only failures are recorded.
 - **It knows if it's being ignored.** Every read is logged to `CONSULT-LOG.tsv` — by Claude Code, not by the AI — and checked whenever a new lesson is written.
-- **One writer.** Only the top-level session writes to it. Subagents propose lessons in their reports; they never write. There's no file locking anywhere here, and concurrent writes to an index silently lose rows.
+- **Only the top-level session writes it.** Any agent may *read* it, but subagents — the director included — only ever propose a lesson in their report; the session decides and records. There's no file locking anywhere here, so concurrent writes to an index would silently lose rows.
 
 ### ② The project archive only
 
-While work is in flight, roles post findings for each other on `TEAM-BOARD.md` — that's how agents who share no memory hand things off. When a batch is finished, the director archives it and resets the board to empty.
+While work is in flight, **every role** posts findings for the others on `TEAM-BOARD.md` — that's how agents who share no memory hand things off.
+
+**Only the `engineering-director` touches the archive.** It alone files a finished batch into the index and shards, resets the board, and reads the archive back. Everyone else appends to the live board and nothing more: knowing a batch is really finished takes the cross-role view only the director has, and if every agent read the archive, that would rebuild the context bloat archiving exists to remove.
 
 **The reset is the only destructive step in the system**, so it's gated: the archive's slug set must match the shards' markers before the board is wiped. Verify the copy landed, *then* delete the original.
 
@@ -79,7 +82,7 @@ The team is the part everyone builds. The archive is what makes it worth running
   code-refactoring-engineer -> cleans up after QA confirms behavior
 ```
 
-Each role has a job description and rules about who to escalate to. The director assigns the smallest set the work needs — a one-line fix gets one person, not a committee — and is the only role that archives the board or reads the archive.
+Each role has a job description and rules about who to escalate to. The director assigns the smallest set the work needs — a one-line fix gets one person, not a committee.
 
 ---
 
