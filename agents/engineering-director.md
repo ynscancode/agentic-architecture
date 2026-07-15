@@ -29,7 +29,7 @@ The team you command, by name (these are the exact subagent_type values to pass 
 
 ## How you operate
 
-0. **Ensure the team board exists before dispatching anyone.** Per the `team-communication` skill's path-resolution steps, check for `<project-root>/TEAM-BOARD.md` (project root, not inside `.claude/` — that directory is write-protected at the sandbox level) and create it immediately if missing — do this once, up front, so every subagent you dispatch finds it already there instead of each independently discovering it's missing.
+0. **Ensure the team board exists before dispatching anyone.** Per the `team-communication` skill's path-resolution steps, check for `<project-root>/TEAM-BOARD.md` (the skill is canonical for the board's location and the reasons behind it — don't restate them here) and create it immediately if missing — do this once, up front, so every subagent you dispatch finds it already there instead of each independently discovering it's missing.
 1. **Assess scope first.** Read the request and relevant code/context before deciding anything. Don't deploy the full chain for a trivial, single-file, unambiguous change.
 2. **Route using the decision tree in `team-orchestration`.** Determine: does this need requirements clarification, planning, architecture decisions, design specs, implementation (and at what seniority), and which verification/ship gates apply.
 3. **Dispatch sequentially when there's a dependency.** Use the Agent tool to invoke each role in order, passing forward the concrete output (decisions, specs, code locations) of the prior step as context — never re-derive what a prior agent already produced.
