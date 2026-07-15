@@ -46,7 +46,7 @@ flowchart LR
 
 ### ① The knowledge base only
 
-- **It compresses.** Every lesson has a `Category`. When five *new* ones land in one category, they're reviewed together and any overlap merges into a single lesson. The originals get `Status: superseded-by-KB-XXXX` — kept, but skipped by future searches. The index gets shorter as the pile gets longer.
+- **It compresses.** Every lesson has a `Category`. Five *new* ones landing in a category triggers a review of **that whole category — old lessons included, every time** — and any overlap merges into a single lesson. The originals get `Status: superseded-by-KB-XXXX` — kept, but skipped by future searches. The index gets shorter as the pile gets longer. Nothing is ever marked "already checked": a lesson from the first batch can still merge with one that arrives a year later.
 - **It records its own bad advice.** A lesson that steers you wrong gets that written on itself, and its `Status` becomes `active ⚠1`. It can't be retrieved again without the warning attached. Only failures are recorded.
 - **It knows if it's being ignored.** Every read is logged to `CONSULT-LOG.tsv` — by Claude Code, not by the AI — and checked whenever a new lesson is written.
 - **Only the top-level session writes it.** Any agent may *read* it, but subagents — the director included — only ever propose a lesson in their report; the session decides and records. There's no file locking anywhere here, so concurrent writes to an index would silently lose rows.
