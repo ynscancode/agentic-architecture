@@ -29,6 +29,35 @@ A lesson qualifies only if it is **all four**:
 - **Shards** — `~/.claude/knowledge/KNOWLEDGE-NNN.md`: full lesson text, each wrapped in `<!-- KB-NNNN:START -->` / `<!-- KB-NNNN:END -->` markers. **10,000-line cap per shard.**
 - Slugs `[KB-NNNN]` are permanent and never reused. No line numbers are stored — boundaries come from markers.
 
+### Bootstrapping a shard
+
+The index ships (or is created) empty; **shards are created lazily, at the first RECORD.** A fresh install therefore has *zero* shards, and the first lesson recorded on it must create `KNOWLEDGE-001.md`. Shard rotation later (`-002`, `-003`, …) uses this same template.
+
+**Use this preamble verbatim — do not improvise one, and don't try to "copy an existing shard" when none exists.** Every install's shards must be identical in structure, or the retrieval protocol (which assumes these exact marker formats) breaks. Substitute the real zero-padded shard number for `<NNN>`, then append wrapped lessons beneath it:
+
+``````markdown
+# Universal Knowledge Base — Shard <NNN>
+
+Cross-project cognitive library: generalizable, transferable lessons distilled from resolved issues.
+**Universal**, not project-specific — applies to Claude's work everywhere. Governed by the
+`knowledge-base` skill (inclusion criteria, write/consult/consolidation protocol).
+
+Two-tier store, same infrastructure as the team-board archive:
+- **Master index** — `KNOWLEDGE-INDEX.md`: one row per lesson (slug, category, shard, status, principle, trigger, tags). Queried first; holds the compressed principle, not the full write-up.
+- **Shards** — `KNOWLEDGE-NNN.md`: full lesson text. This is shard <NNN>, capped at 10,000 lines.
+
+Each lesson is wrapped in explicit boundary markers for deterministic extraction (use the real slug for `NNNN`):
+
+```
+sed -n '/<!-- KB-NNNN:START -->/,/<!-- KB-NNNN:END -->/p' KNOWLEDGE-<NNN>.md
+```
+
+Slugs `[KB-NNNN]` are permanent — never reused. A lesson may be **superseded** by a more general one
+(its `Status` points at the successor) but is never deleted, so provenance survives compression.
+
+---
+``````
+
 ## Who curates
 
 The **top-level session** owns writes and consolidation. Subagents (e.g. `engineering-director`) **must not write here** — a subagent **proposes** a candidate lesson in its final report, and the top-level session decides whether it clears the inclusion test and records it. Consulting (reading) is open to whoever needs it.
@@ -68,7 +97,7 @@ If you want a hard barrier rather than discipline, add a permission deny-rule fo
 Trigger: right after resolving something whose lesson passes the four-part inclusion test. (Cross-issue patterns don't need their own separate trigger to watch for — they surface mechanically during a CONSOLIDATION pass, see its explicit trigger below, which is itself checked automatically at RECORD step 6.)
 
 1. **Dedupe first.** Grep the index for the topic. If a near-identical lesson exists, don't add a duplicate — either it already covers this (do nothing) or this is a sharper/more general version (go to Consolidation).
-2. **Capacity check.** Highest shard's `wc -l`; if this entry would exceed 10,000 lines, open `KNOWLEDGE-<NNN+1>.md` with the standard preamble.
+2. **Pick the shard.** `ls KNOWLEDGE-[0-9]*.md` for the highest-numbered shard, then `wc -l` it: if this entry would push it past 10,000 lines, open `KNOWLEDGE-<NNN+1>.md` instead. **Base case: no shard at all (a fresh install — the index ships empty) → create `KNOWLEDGE-001.md` now.** Either way the new file starts from the canonical preamble in "Bootstrapping a shard" above — never an improvised header.
 3. **Assign a slug.** `max existing KB-NNNN across all shards + 1` (`grep -hoE '\[KB-[0-9]+\]' KNOWLEDGE-*.md`). **Base case: if that grep returns nothing (empty KB), start at `KB-0001`.** Always 4-digit zero-padded. Permanent, never reused.
 4. **Write the shard section**, wrapped in `<!-- KB-NNNN:START/END -->`, with: `Category`, `Status: active`, `Principle`, `Trigger`, `Context (generalized)`, `Why it generalizes`, `How to apply`, `Provenance` (date + a *generalized* description of where it arose — no project secrets). Verify the marker pair is well-formed.
 5. **Register one index row** (`Slug | Category | Shard | Status | Principle | Trigger | Tags`). Keep `Principle`/`Trigger` tight and disambiguating — they carry retrieval. `Shard` is the zero-padded shard **number only** (e.g. `001`), not a filename — retrieval derives the file as `KNOWLEDGE-<Shard>.md`.
