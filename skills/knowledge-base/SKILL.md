@@ -68,6 +68,14 @@ The **top-level session** owns writes and consolidation. Subagents (e.g. `engine
 
 If you want a hard barrier rather than discipline, add a permission deny-rule for `~/.claude/knowledge/**` — nothing in the runtime enforces it today.
 
+**"The top-level session" is a role, not an instance — and that is this policy's real limit.** Several Claude Code sessions can be open at once (different projects, different windows), and each one *is* a top-level session with an equal claim to write. Nothing coordinates them; there is no lock. So single-writer constrains **subagents only** — it does *not* make writes serial, and reading it as a concurrency guarantee is a mistake.
+
+Confirmed live (2026-07-15): two sessions recorded lessons into this index minutes apart, and one of them nearly reused a slug the other had just taken. Nothing was lost — the interleaving happened to be safe, which is luck, not design. **The mitigation here is detection, not prevention:**
+- RECORD step 3's `max + 1` must come from a **fresh read taken immediately before you write** — never from a number you learned earlier in the session. A stale max is exactly how a slug gets reused.
+- RECORD step 8's **uniqueness check** is the thing that surfaces a collision after the fact. Parity cannot: a duplicate lands on both sides and cancels out.
+
+Don't reach for a lock file. With no daemon to release it, a stale lock blocks every future write — worse than the collision it prevents, at a probability (two sessions recording within seconds) that doesn't justify it.
+
 ## CONSULT protocol (retrieval funnel — recall, then precision)
 
 **Trigger — bias toward consulting; under-use is the real failure mode.** Most lessons here are *domain gotchas* that fire on the **kind of code you're touching**, not on a conscious "I am now making a design decision" moment — a decision-shaped trigger under-fires and the library goes unread. (Check the lessons' own `Trigger` fields: several fire on *touching date code*, *writing a migration*, *touching auth*, or *debugging a layout symptom* — none of which feel like decisions.) Consult when you're about to:
@@ -113,7 +121,19 @@ Trigger: right after resolving something whose lesson passes the four-part inclu
    - **A pile of `other` rows next to zero `consult` rows is not health — it is the diagnosis.** It means the KB is being *maintained* but never *used*.
    - **The harness writes this log, not you** — a log you maintained would share the exact failure it measures. Never hand-write rows; if it looks wrong, fix the hook.
    - An empty log is only meaningful *after* real work has happened with the hook installed. On the first record after install there's nothing to compare against — note that and move on. Likewise, a session spent working *on* the KB produces `other` rows only; that's correct, not a fault.
-8. **Consistency invariant:** the index's slug set must equal the shards' `:START`-marker set. Cross-check after writing.
+8. **Consistency invariants — check both. The second is the one the first cannot see.**
+   ```bash
+   cd ~/.claude/knowledge
+   # (a) parity: every index row has a shard section, and vice versa
+   diff <(grep -oE '^\| KB-[0-9]+' KNOWLEDGE-INDEX.md   | grep -oE 'KB-[0-9]+' | sort) \
+        <(grep -hoE '<!-- KB-[0-9]+:START' KNOWLEDGE-*.md | grep -oE 'KB-[0-9]+' | sort)
+   # (b) uniqueness: no slug used twice. MUST print nothing.
+   grep -hoE '<!-- KB-[0-9]+:START' KNOWLEDGE-*.md | grep -oE 'KB-[0-9]+' | sort | uniq -d
+   grep -oE '^\| KB-[0-9]+' KNOWLEDGE-INDEX.md | grep -oE 'KB-[0-9]+' | sort | uniq -d
+   ```
+   - **Parity is structurally blind to a duplicate slug.** A collision writes a row *and* a section, so the duplicate appears on both sides and the `diff` cancels it out and passes. Set-equality cannot see multiplicity — that's why (b) exists as its own check, and why "slugs are permanent and never reused" was, until this check, an invariant nothing verified.
+   - **A duplicate slug is what a concurrent write looks like** (see "Who curates" — several top-level sessions can write, and nothing serializes them). It also breaks retrieval outright: `sed` between `START`/`END` on a doubled slug returns two sections glued together, or stops at the wrong `END`.
+   - **If `uniq -d` prints anything, fix it now.** Renumber the *later* entry — both its index row and its shard section — to the next free slug. Slugs are permanent, so every hour a duplicate survives is another hour of cross-references that could point at it.
 
 ## CONSOLIDATION protocol (continuous semantic compression — what makes it *compound*)
 
