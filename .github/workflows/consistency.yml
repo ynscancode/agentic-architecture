@@ -1,0 +1,31 @@
+name: consistency
+
+# KB-0008 says: if you must have a spec in two places, add a check that fails
+# loudly on divergence. This is that check. The skills are canonical; the agent
+# prompts point at them. This job fails the build if a pointer dangles, a
+# restatement creeps back in, or the roster disagrees with itself.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check prompts and skills have not diverged
+        run: python tools/check_consistency.py
+
+      # Without this, the checker could rot into a no-op that passes everything
+      # and nobody would notice -- a green check that verifies nothing is worse
+      # than no check, because it buys false confidence.
+      - name: Prove the checker still detects divergence
+        run: python tools/test_check_consistency.py

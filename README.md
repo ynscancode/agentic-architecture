@@ -103,6 +103,15 @@ Even if you never run this, these are the ideas doing the work:
 
 **Make triggers fire on the work, not on a feeling.** Lessons are recalled when you touch a *kind of code* (dates, auth, migrations, layout), not when you consciously decide you're "making a design decision" — a decision-shaped trigger under-fires and leaves the library unread. The consolidation check runs on every write for the same reason: a "periodic" pass nothing schedules is a pass that never happens.
 
+**If you must duplicate a spec, add a check that fails loudly on divergence.** The skills are canonical and the agent prompts point at them rather than restating them — which trades one failure mode for another, since a pointer dangles silently when a section gets renamed. `tools/check_consistency.py` guards both directions, and CI runs it on every push:
+
+```bash
+python tools/check_consistency.py       # 0 = consistent, 1 = divergence, with file:line
+python tools/test_check_consistency.py  # proves the checker still detects all 9 classes
+```
+
+It catches dangling skill/section pointers, roster disagreement across the three places the team is named, spec restatements creeping back into a prompt, frontmatter/filename mismatch, and bracketed boundary markers — the last being a real bug this repo shipped with, where a prompt specified a marker format the skill's own `sed` retrieval silently fails to match. The self-test exists because a check that has only ever passed is untested; a green check that verifies nothing is worse than no check, since it buys false confidence.
+
 **Don't let it become process theater.** The routing tree exists to deploy the *minimum* set of roles that covers the work. A one-line fix by one role beats a five-agent pipeline. Maximal team utilization is a failure mode, not a goal.
 
 ---
