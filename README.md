@@ -60,7 +60,9 @@ A cross-project library of **generalizable** lessons at `~/.claude/knowledge/`. 
 
 ### It compresses instead of accumulating
 
-When a category reaches **5 active lessons**, a consolidation pass fires automatically (checked on every write, so it can't quietly not happen). Overlapping lessons collapse into one higher-order principle; the originals are marked `superseded-by-KB-XXXX` rather than deleted, so provenance survives the compression. Retrieval skips superseded rows, so the *active* surface stays small even as history grows.
+When **5 lessons have been added to a category since that category's last consolidation pass**, a compression pass fires automatically (checked on every write, so it can't quietly not happen). Overlapping lessons collapse into one higher-order principle; the originals are marked `superseded-by-KB-XXXX` rather than deleted, so provenance survives the compression. Retrieval skips superseded rows, so the *active* surface stays small even as history grows.
+
+The trigger measures **new material, not standing inventory** — and that distinction is load-bearing. It counts a category *label*, so it can't see whether the content actually overlaps; it's a proxy for "there might be redundancy here." When a category's lessons turn out genuinely distinct, the pass merges nothing and supersedes nothing, so a total-count trigger would stay armed and re-fire a fruitless pass on *every* subsequent write to that category, forever. Each pass records a watermark instead — including a pass that merges nothing, since "these are distinct" is a result — so every batch of new material gets evaluated exactly once.
 
 ### It records when it's wrong
 

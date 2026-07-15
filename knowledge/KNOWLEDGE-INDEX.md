@@ -22,3 +22,23 @@ protocol, and the boundary with per-project memory.
 
 | Slug | Category | Shard | Status | Principle (compressed) | Trigger (when to recall) | Tags |
 |---|---|---|---|---|---|---|
+
+---
+
+## Consolidation watermarks
+
+Bookkeeping for the CONSOLIDATION trigger — **not** part of retrieval. Ignore this table when consulting;
+it holds no lessons.
+
+One row per category that has been consolidated at least once. `Watermark` is the highest `KB-NNNN` in
+existence when that category's last pass ran, so "added since the last pass" = that category's
+`Status: active` rows with a **higher** slug. A category with no row here has never been consolidated —
+treat its watermark as `KB-0000` and count all of its active lessons.
+
+The trigger deliberately measures **new material, not standing inventory**: a pass over genuinely
+distinct lessons merges nothing, so a total-active count would stay armed and re-fire a fruitless pass
+on every subsequent write to that category, forever. **A pass that finds nothing to merge still updates
+its watermark** — "these are distinct" is a result, not a skipped pass.
+
+| Category | Last pass | Watermark |
+|---|---|---|

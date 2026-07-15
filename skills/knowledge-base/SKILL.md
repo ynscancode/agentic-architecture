@@ -25,7 +25,7 @@ A lesson qualifies only if it is **all four**:
 
 ## Structure (same infrastructure as the team-board archive)
 
-- **Master index** — `~/.claude/knowledge/KNOWLEDGE-INDEX.md`: one row per lesson (`Slug | Category | Shard | Status | Principle | Trigger | Tags`). Query this first.
+- **Master index** — `~/.claude/knowledge/KNOWLEDGE-INDEX.md`: one row per lesson (`Slug | Category | Shard | Status | Principle | Trigger | Tags`). Query this first. It also carries a small **Consolidation watermarks** table (one row per category that has been consolidated) — bookkeeping for the CONSOLIDATION trigger, not part of retrieval; ignore it when consulting.
 - **Shards** — `~/.claude/knowledge/KNOWLEDGE-NNN.md`: full lesson text, each wrapped in `<!-- KB-NNNN:START -->` / `<!-- KB-NNNN:END -->` markers. **10,000-line cap per shard.**
 - Slugs `[KB-NNNN]` are permanent and never reused. No line numbers are stored — boundaries come from markers.
 
@@ -72,14 +72,18 @@ Trigger: right after resolving something whose lesson passes the four-part inclu
 3. **Assign a slug.** `max existing KB-NNNN across all shards + 1` (`grep -hoE '\[KB-[0-9]+\]' KNOWLEDGE-*.md`). **Base case: if that grep returns nothing (empty KB), start at `KB-0001`.** Always 4-digit zero-padded. Permanent, never reused.
 4. **Write the shard section**, wrapped in `<!-- KB-NNNN:START/END -->`, with: `Category`, `Status: active`, `Principle`, `Trigger`, `Context (generalized)`, `Why it generalizes`, `How to apply`, `Provenance` (date + a *generalized* description of where it arose — no project secrets). Verify the marker pair is well-formed.
 5. **Register one index row** (`Slug | Category | Shard | Status | Principle | Trigger | Tags`). Keep `Principle`/`Trigger` tight and disambiguating — they carry retrieval. `Shard` is the zero-padded shard **number only** (e.g. `001`), not a filename — retrieval derives the file as `KNOWLEDGE-<Shard>.md`.
-6. **Check the consolidation trigger — do this every time, not just "periodically."** `grep -c` `KNOWLEDGE-INDEX.md` for `| <this Category> |` rows with `Status: active`. **If the count is ≥ 5**, run the CONSOLIDATION protocol on that category now, before finishing — don't defer it, since nothing else will independently notice this later. This is the mechanism that actually fires the trigger described below; without this step the consolidation rule is unenforced.
+6. **Check the consolidation trigger — do this every time, not just "periodically."** The trigger fires on **new material, not standing inventory**: count this `Category`'s `Status: active` rows in `KNOWLEDGE-INDEX.md` whose slug is **higher than that category's watermark** in the index's "Consolidation watermarks" table. No row there means the category has never been consolidated — treat its watermark as `KB-0000` and count all of them. **If that count is ≥ 5**, run the CONSOLIDATION protocol on that category now, before finishing — don't defer it, since nothing else will independently notice this later. This is the mechanism that actually fires the trigger described below; without this step the consolidation rule is unenforced.
+   - **Why "since the last pass" rather than "total active":** the trigger counts a category *label* — it cannot see whether the content actually overlaps, and is only a cheap proxy for "there might be redundancy here." When a category's lessons are genuinely distinct, a pass merges nothing and supersedes nothing, so a total-active count stays ≥ 5 and re-fires a **fruitless pass on every subsequent write to that category, forever**. Watermarking makes each batch of new material get evaluated exactly once.
+   - Filter on `Status: active` when counting. That's also what keeps the watermark table's own rows out of the count — they carry no status.
 7. **Consistency invariant:** the index's slug set must equal the shards' `:START`-marker set. Cross-check after writing.
 
 ## CONSOLIDATION protocol (continuous semantic compression — what makes it *compound*)
 
 A growing pile of narrow lessons is a liability; the library must get **denser and sharper**, not just bigger.
 
-**Trigger (explicit, checkable):** a `Category` reaches **5 or more `active`-status entries** — checked automatically at RECORD step 6 above, every time a row is registered. Also run on demand if the user asks, or if you notice redundancy while consulting the KB for an unrelated task (opportunistic — not required, but don't ignore it if you spot it). Do not wait for a separate "periodic" pass; the count check at RECORD step 6 is what makes this actually happen instead of sitting as an unmonitored guideline.
+**Trigger (explicit, checkable):** **5 or more `active` lessons have been added to a `Category` since that category's last consolidation pass** — for a category that has never been consolidated, that is simply 5 or more `active` entries. Checked automatically at RECORD step 6 above, every time a row is registered. Also run on demand if the user asks, or if you notice redundancy while consulting the KB for an unrelated task (opportunistic — not required, but don't ignore it if you spot it). Do not wait for a separate "periodic" pass; the count check at RECORD step 6 is what makes this actually happen instead of sitting as an unmonitored guideline.
+
+The trigger measures *new material*, not standing inventory — see RECORD step 6 for why a total-active count re-fires forever on a category whose lessons turn out to be genuinely distinct. Note the pass itself still considers the **whole** category (step 1), not just the new arrivals: a new lesson often subsumes an old one, and cross-cutting patterns only surface across the full set. It's the *trigger* that's scoped to new material, not the comparison.
 
 Compression pass, once triggered — **runs off the index, not full shard reads** (same recall-then-extract discipline as CONSULT; you do *not* read every lesson's full body):
 
@@ -87,7 +91,8 @@ Compression pass, once triggered — **runs off the index, not full shard reads*
 2. **Extract only what you'll merge.** Once you've identified the specific 2–4 lessons that collapse into one, `sed`-extract *just those* shard entries — so you can preserve their concrete specifics and cross-reference them — then **write one higher-order principle** (new slug) that subsumes them. The other category rows you never opened stay unread.
 3. Mark the subsumed entries `Status: superseded-by-KB-XXXX` (never delete — provenance and the specific cases stay reachable). Point the successor's `Context` back at them.
 4. Merge near-duplicates the same way. Prune nothing outright; supersede instead.
-5. Retrieval skips `superseded-*` rows by default, so the active surface stays small even as history grows.
+5. **Record the watermark — do this even if you merged nothing.** In `KNOWLEDGE-INDEX.md`'s "Consolidation watermarks" table, set this category's row to today's date and the highest `KB-NNNN` now in existence (add the row if this was the category's first pass). Do this *after* writing any successor, so the successor isn't counted as new material toward the next trigger. **A pass that found nothing to merge is a completed pass, not a skipped one** — "these lessons are genuinely distinct" is a result, and recording it is exactly what stops the trigger re-firing on every subsequent write to the category. Skipping this step re-creates the bug the watermark exists to fix.
+6. Retrieval skips `superseded-*` rows by default, so the active surface stays small even as history grows.
 
 Bias every step toward **fewer, more general, more actionable** entries. A handful of sharp principles beats a hundred vague notes.
 
