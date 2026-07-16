@@ -90,6 +90,8 @@ The team is the part everyone builds. The archive is what makes it worth running
 
 Each role has a job description and rules about who to escalate to. The director assigns the smallest set the work needs — a one-line fix gets one person, not a committee.
 
+**Assign complex work to the director yourself.** `CLAUDE.md` asks the main session to hand anything team-shaped to `engineering-director`, but that's a judgment call and it won't fire reliably. Naming the director in your request is the dependable path. It's also the assumption the spawn-time scans are built on: being spawned at all is the signal that the work is worth the lookup.
+
 ---
 
 ## What's in here
@@ -152,7 +154,7 @@ mkdir -p ~/.claude/hooks && cp hooks/log-kb-consult.py ~/.claude/hooks/
 
 Nothing to install per-project — each project archive creates itself the first time the team touches that repo.
 
-Check it landed with `ls ~/.claude/agents/ | wc -l` (15) and `ls -d ~/.claude/skills/*/ | wc -l` (19). Then give Claude something real that spans a few disciplines: you should see it route through `engineering-director`, bring in specialists in order, and run QA and security before calling it done.
+Check it landed with `ls ~/.claude/agents/ | wc -l` (15) and `ls -d ~/.claude/skills/*/ | wc -l` (19). Then give Claude something real that spans a few disciplines and tag `engineering-director` on it: you should see it scan both indices, bring in specialists in order, and run QA and security before calling it done.
 
 ---
 
